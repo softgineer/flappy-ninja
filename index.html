@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flappy Ninja - Action Game</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+    
+    .game-wrapper {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    #game-container {
+      background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
+      width: 100%;
+      aspect-ratio: 9/16;
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      border: 2px solid rgba(255,255,255,0.3);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    
+    #gameCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    
+    .stats {
+      display: flex;
+      gap: 12px;
+      padding: 0 1rem;
+    }
+    
+    .stat-card {
+      flex: 1;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 4px;
+    }
+    
+    .stat-value {
+      font-size: 20px;
+      font-weight: 600;
+      color: white;
+    }
+    
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      border-radius: 12px;
+    }
+    
+    .overlay-hidden {
+      display: none;
+    }
+    
+    .overlay-content {
+      text-align: center;
+      color: white;
+    }
+    
+    .overlay-title {
+      font-size: 32px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .overlay-subtitle {
+      font-size: 14px;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    
+    .overlay-score {
+      font-size: 18px;
+      margin-bottom: 24px;
+    }
+    
+    .overlay-score div {
+      margin: 4px 0;
+    }
+    
+    .overlay-score-label {
+      font-size: 14px;
+      color: rgba(255,255,255,0.7);
+    }
+    
+    button {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    
+    button:active {
+      transform: scale(0.98);
+    }
+    
+    .title {
+      text-align: center;
+      color: white;
+      margin-bottom: 1rem;
+    }
+    
+    .title h1 {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+    
+    .title p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+    }
+  </style>
+</head>
+<body>
+  <div class="game-wrapper">
+    <div class="title">
+      <h1>🥋 Flappy Ninja</h1>
+      <p>Tap to jump, avoid the pipes</p>
+    </div>
+    
+    <div id="game-container">
+      <canvas id="gameCanvas"></canvas>
+      
+      <div id="start-overlay" class="overlay">
+        <div class="overlay-content">
+          <div class="overlay-title">Flappy Ninja</div>
+          <div class="overlay-subtitle">
+            Tap or click to jump<br/>Avoid the pipes
+          </div>
+          <button onclick="startGame()">Start Game</button>
+        </div>
+      </div>
+      
+      <div id="game-over-overlay" class="overlay overlay-hidden">
+        <div class="overlay-content">
+          <div class="overlay-title">Game Over</div>
+          <div class="overlay-score">
+            <div>Score: <span id="final-score">0</span></div>
+            <div class="overlay-score-label">High Score: <span id="final-highscore">0</span></div>
+          </div>
+          <button onclick="tryAgain()">Try Again</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-label">Score</div>
+        <div class="stat-value" id="score-display">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">High Score</div>
+        <div class="stat-value" id="highscore-display">0</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    function resizeCanvas() {
+      const container = document.getElementById('game-container');
+      const rect = container.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    let gameState = {
+      running: false,
+      gameOver: false,
+      score: 0,
+      highScore: localStorage.getItem('flappyNinjaHighScore') ? parseInt(localStorage.getItem('flappyNinjaHighScore')) : 0
+    };
+    
+    const player = {
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      velocityY: 0,
+      gravity: 0,
+      jumpPower: 0
+    };
+    
+    let pipes = [];
+    let frameCount = 0;
+    
+    function initGame() {
+      player.width = canvas.width * 0.08;
+      player.height = canvas.width * 0.08;
+      player.x = canvas.width * 0.2;
+      player.y = canvas.height / 2;
+      player.velocityY = 0;
+      player.gravity = canvas.height * 0.0006;
+      player.jumpPower = canvas.height * 0.015;
+      pipes = [];
+      frameCount = 0;
+      gameState.score = 0;
+      gameState.running = true;
+      gameState.gameOver = false;
+      document.getElementById('game-over-overlay').classList.add('overlay-hidden');
+    }
+    
+    function startGame() {
+      document.getElementById('start-overlay').classList.add('overlay-hidden');
+      initGame();
+    }
+    
+    function tryAgain() {
+      document.getElementById('start-overlay').classList.remove('overlay-hidden');
+    }
+    
+    function drawPlayer() {
+      ctx.fillStyle = '#FF6B6B';
+      ctx.beginPath();
+      ctx.arc(player.x + player.width / 2, player.y + player.height / 2, player.width / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#C92A2A';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    
+    function drawPipes() {
+      pipes.forEach(pipe => {
+        ctx.fillStyle = '#4CAF50';
+        ctx.fillRect(pipe.x, 0, pipe.width, pipe.topHeight);
+        ctx.fillRect(pipe.x, pipe.topHeight + pipe.gap, pipe.width, canvas.height - (pipe.topHeight + pipe.gap));
+        
+        ctx.strokeStyle = '#388E3C';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(pipe.x, 0, pipe.width, pipe.topHeight);
+        ctx.strokeRect(pipe.x, pipe.topHeight + pipe.gap, pipe.width, canvas.height - (pipe.topHeight + pipe.gap));
+      });
+    }
+    
+    function updatePlayer() {
+      player.velocityY += player.gravity;
+      player.y += player.velocityY;
+      
+      if (player.y + player.height > canvas.height || player.y < 0) {
+        endGame();
+      }
+    }
+    
+    function updatePipes() {
+      const pipeSpeed = canvas.width * 0.006;
+      
+      pipes.forEach(pipe => {
+        pipe.x -= pipeSpeed;
+      });
+      
+      pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
+      
+      if (frameCount % 120 === 0) {
+        const gapHeight = canvas.height * 0.25;
+        const minTop = canvas.height * 0.1;
+        const maxTop = canvas.height * 0.6;
+        const topHeight = minTop + Math.random() * (maxTop - minTop);
+        
+        pipes.push({
+          x: canvas.width,
+          width: canvas.width * 0.12,
+          topHeight: topHeight,
+          gap: gapHeight,
+          scored: false
+        });
+      }
+    }
+    
+    function checkCollisions() {
+      pipes.forEach(pipe => {
+        if (!pipe.scored && pipe.x + pipe.width < player.x) {
+          pipe.scored = true;
+          gameState.score++;
+          updateScore();
+        }
+        
+        if (player.x < pipe.x + pipe.width && player.x + player.width > pipe.x) {
+          if (player.y < pipe.topHeight || player.y + player.height > pipe.topHeight + pipe.gap) {
+            endGame();
+          }
+        }
+      });
+    }
+    
+    function updateScore() {
+      document.getElementById('score-display').textContent = gameState.score;
+    }
+    
+    function endGame() {
+      gameState.running = false;
+      gameState.gameOver = true;
+      
+      if (gameState.score > gameState.highScore) {
+        gameState.highScore = gameState.score;
+        localStorage.setItem('flappyNinjaHighScore', gameState.highScore);
+      }
+      
+      document.getElementById('final-score').textContent = gameState.score;
+      document.getElementById('highscore-display').textContent = gameState.highScore;
+      document.getElementById('final-highscore').textContent = gameState.highScore;
+      document.getElementById('game-over-overlay').classList.remove('overlay-hidden');
+    }
+    
+    function gameLoop() {
+      ctx.fillStyle = '#87CEEB';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#E0F6FF';
+      ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
+      
+      if (gameState.running) {
+        updatePlayer();
+        updatePipes();
+        checkCollisions();
+      }
+      
+      drawPipes();
+      drawPlayer();
+      frameCount++;
+      
+      requestAnimationFrame(gameLoop);
+    }
+    
+    document.addEventListener('click', () => {
+      if (gameState.running) {
+        player.velocityY = -player.jumpPower;
+      }
+    });
+    
+    document.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (gameState.running) {
+        player.velocityY = -player.jumpPower;
+      }
+    });
+    
+    document.getElementById('highscore-display').textContent = gameState.highScore;
+    gameLoop();
+  </script>
+</body>
+</html>
