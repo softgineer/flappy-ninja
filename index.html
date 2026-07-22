@@ -881,4 +881,872 @@
       this.x = 0; this.y = 0;
       this.r = 0;
       this.collected = false;
-     
+      this.active = false;
+      this.bob = 0;
+      this.type = 'normal';
+      this.glow = 0;
+    }
+
+    init(x, y, type = 'normal') {
+      this.x = x;
+      this.y = y;
+      this.type = type;
+      this.r = type === 'diamond' ? W * 0.025 : type === 'golden' ? W * 0.03 : W * 0.02;
+      this.collected = false;
+      this.active = true;
+      this.bob = rand(0, Math.PI * 2);
+      this.glow = 0;
+      return this;
+    }
+
+    update(speed) {
+      this.x -= speed;
+      this.bob += 0.04;
+      this.y += Math.sin(this.bob) * 0.15;
+      this.glow = Math.sin(this.bob * 2) * 0.3 + 0.7;
+      if (this.x + this.r < 0) this.active = false;
+    }
+
+    draw(ctx) {
+      const colors = {
+        normal: { fill: '#f7d44a', stroke: '#bf8f2a', glow: '#f7b32b' },
+        golden: { fill: '#ffd700', stroke: '#daa520', glow: '#ffdd44' },
+        diamond: { fill: '#7fe0ff', stroke: '#4a9fcf', glow: '#8af0ff' }
+      };
+      const c = colors[this.type] || colors.normal;
+      
+      ctx.shadowColor = c.glow;
+      ctx.shadowBlur = 15 * this.glow;
+      ctx.fillStyle = c.fill;
+      ctx.strokeStyle = c.stroke;
+      ctx.lineWidth = 1.5;
+
+      if (this.type === 'diamond') {
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y - this.r);
+        ctx.lineTo(this.x + this.r, this.y);
+        ctx.lineTo(this.x, this.y + this.r);
+        ctx.lineTo(this.x - this.r, this.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // Inner star for golden
+        if (this.type === 'golden') {
+          ctx.fillStyle = 'rgba(255,255,200,0.3)';
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.r * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  const coinPool = new ObjectPool(() => new Coin(), 40);
+  let coins = [];
+
+  function spawnCoin() {
+    const types = ['normal', 'normal', 'normal', 'golden', 'diamond'];
+    const type = types[randInt(0, types.length - 1)];
+    const y = rand(H * 0.12, H * 0.82);
+    const c = coinPool.get();
+    c.init(W + 30, y, type);
+    coins.push(c);
+  }
+
+  // ============================================================
+  // ENEMY SYSTEM (simplified)
+  // ============================================================
+  class Enemy {
+    constructor() {
+      this.x = 0; this.y = 0;
+      this.w = 0; this.h = 0;
+      this.active = false;
+      this.type = 'bat';
+      this.vy = 0;
+      this.vx = 0;
+      this.phase = 0;
+      this.diving = false;
+      this.diveTimer = 0;
+    }
+
+    init(x, y, type = 'bat') {
+      this.x = x;
+      this.y = y;
+      this.type = type;
+      this.w = W * 0.04;
+      this.h = this.w;
+      this.active = true;
+      this.phase = rand(0, Math.PI * 2);
+      this.diving = false;
+      this.diveTimer = 0;
+      this.vy = rand(-0.5, 0.5);
+      this.vx = -rand(0.5, 1.5);
+      if (type === 'crow') { this.h = this.w * 1.2; }
+      if (type === 'ghost') { this.h = this.w * 1.3; this.vx *= 0.5; }
+      return this;
+    }
+
+    update(speed, playerY) {
+      this.x -= speed * 0.8 + this.vx * 0.2;
+      
+      if (this.type === 'bat') {
+        this.y += Math.sin(this.phase) * 0.5;
+        this.phase += 0.05;
+      } else if (this.type === 'crow') {
+        this.y += Math.sin(this.phase) * 0.8;
+        this.phase += 0.07;
+        if (!this.diving && Math.random() < 0.005) {
+          this.diving = true;
+          this.diveTimer = 30;
+        }
+        if (this.diving) {
+          this.y += 1.5;
+          this.diveTimer--;
+          if (this.diveTimer <= 0) this.diving = false;
+        }
+      } else if (this.type === 'ghost') {
+        this.y += Math.sin(this.phase) * 0.3;
+        this.phase += 0.03;
+        this.y += Math.sin(this.phase * 0.5) * 0.2;
+      }
+      
+      if (this.x + this.w < -20) this.active = false;
+    }
+
+    draw(ctx) {
+      const x = this.x, y = this.y, w = this.w, h = this.h;
+      ctx.save();
+      
+      if (this.type === 'bat') {
+        ctx.fillStyle = '#2a1a2a';
+        ctx.beginPath();
+        ctx.ellipse(x + w/2, y + h/2, w/2, h/2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // wings
+        ctx.fillStyle = '#1a0a1a';
+        ctx.beginPath();
+        ctx.ellipse(x - w*0.2, y + h*0.2, w*0.4, h*0.3, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(x + w*1.2, y + h*0.2, w*0.4, h*0.3, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        // eyes
+        ctx.fillStyle = '#ff4444';
+        ctx.beginPath();
+        ctx.arc(x + w*0.3, y + h*0.4, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + w*0.7, y + h*0.4, 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (this.type === 'crow') {
+        ctx.fillStyle = '#1a1a2a';
+        ctx.beginPath();
+        ctx.ellipse(x + w/2, y + h/2, w/2, h/2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#0a0a1a';
+        ctx.beginPath();
+        ctx.moveTo(x + w*0.8, y + h*0.3);
+        ctx.lineTo(x + w*1.3, y + h*0.5);
+        ctx.lineTo(x + w*0.8, y + h*0.7);
+        ctx.fill();
+        ctx.fillStyle = '#ffaa44';
+        ctx.beginPath();
+        ctx.arc(x + w*0.3, y + h*0.4, 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (this.type === 'ghost') {
+        ctx.fillStyle = 'rgba(200,200,255,0.3)';
+        ctx.shadowColor = 'rgba(150,150,255,0.2)';
+        ctx.shadowBlur = 30;
+        ctx.beginPath();
+        ctx.arc(x + w/2, y + h/2, w/2, 0, Math.PI);
+        ctx.lineTo(x + w, y + h);
+        ctx.lineTo(x, y + h);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.beginPath();
+        ctx.arc(x + w*0.3, y + h*0.4, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + w*0.7, y + h*0.4, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      ctx.restore();
+    }
+  }
+
+  const enemyPool = new ObjectPool(() => new Enemy(), 20);
+  let enemies = [];
+
+  function spawnEnemy() {
+    const types = ['bat', 'bat', 'crow', 'ghost'];
+    const type = types[randInt(0, types.length - 1)];
+    const y = rand(H * 0.1, H * 0.7);
+    const e = enemyPool.get();
+    e.init(W + 20, y, type);
+    enemies.push(e);
+  }
+
+  // ============================================================
+  // POWERUP SYSTEM (simplified)
+  // ============================================================
+  let powerups = [];
+  let activePowerups = {};
+
+  function spawnPowerup() {
+    const types = ['shield', 'magnet', 'doubleJump', 'slowMo'];
+    const type = types[randInt(0, types.length - 1)];
+    powerups.push({
+      x: W + 20,
+      y: rand(H * 0.15, H * 0.75),
+      type: type,
+      size: W * 0.035,
+      bob: rand(0, Math.PI * 2),
+      active: true,
+      collected: false
+    });
+  }
+
+  // ============================================================
+  // GAME INIT
+  // ============================================================
+  function initGame() {
+    const pw = W * 0.07;
+    player.w = pw;
+    player.h = pw * 1.3;
+    player.x = W * 0.22;
+    player.y = H * 0.4;
+    player.vy = 0;
+    player.gravity = H * 0.0006;
+    player.jumpPower = H * 0.014;
+    player.rotation = 0;
+    player.squash = 1;
+    player.stretch = 1;
+    player.isGrounded = false;
+    player.state = 'idle';
+    player.animTimer = 0;
+
+    obstacles = [];
+    coins = [];
+    enemies = [];
+    powerups = [];
+    particlePool.releaseAll();
+    weatherParticles = [];
+
+    game.running = true;
+    game.over = false;
+    game.score = 0;
+    game.coins = 0;
+    game.frame = 0;
+    game.combo = 0;
+    game.maxCombo = 0;
+    game.comboCountdown = 0;
+    game.obstaclesCleared = 0;
+    game.jumps = 0;
+    game.startTime = Date.now();
+    game.totalTime = 0;
+    game.nearMisses = 0;
+    game.difficulty = 1;
+    game.slowMo = false;
+    game.slowMoTimer = 0;
+    game.shakeIntensity = 0;
+
+    activePowerups = {};
+    initWeather();
+    
+    updateHUD();
+    gameOverOverlay.classList.add('hidden');
+    comboDisplay.classList.remove('active');
+  }
+
+  // ============================================================
+  // JUMP
+  // ============================================================
+  function jump() {
+    if (!game.running || game.over) return;
+    
+    const doubleJump = activePowerups.doubleJump && activePowerups.doubleJump > 0;
+    if (!player.isGrounded && !doubleJump) return;
+    
+    player.vy = -player.jumpPower;
+    player.isGrounded = false;
+    player.state = 'jump';
+    game.jumps++;
+    storage.totalJumps++;
+    
+    emitParticles(player.x + player.w/2, player.y + player.h, 6, {
+      color: 'rgba(200,180,220,0.3)',
+      speed: 2,
+      upward: 1,
+      lifeMin: 10,
+      lifeMax: 20,
+      sizeMin: 2,
+      sizeMax: 4
+    });
+    
+    if (doubleJump) {
+      activePowerups.doubleJump--;
+      emitParticles(player.x + player.w/2, player.y, 12, {
+        color: 'rgba(100,200,255,0.5)',
+        speed: 3,
+        upward: 2,
+        lifeMin: 15,
+        lifeMax: 25
+      });
+    }
+  }
+
+  // ============================================================
+  // UPDATE
+  // ============================================================
+  function update() {
+    if (!game.running || game.over) return;
+
+    const difficulty = 1 + game.score / 200;
+    game.difficulty = Math.min(difficulty, 4);
+    const speed = W * (0.008 + game.difficulty * 0.001);
+    const slowMo = game.slowMo || activePowerups.slowMo;
+    const speedMult = slowMo ? 0.4 : 1;
+
+    // Player physics
+    const gravMult = activePowerups.feather ? 0.3 : 1;
+    player.vy += player.gravity * gravMult * (slowMo ? 0.5 : 1);
+    player.y += player.vy * (slowMo ? 0.5 : 1);
+
+    // Ground collision
+    if (player.y + player.h >= H) {
+      player.y = H - player.h;
+      if (!player.isGrounded) {
+        player.isGrounded = true;
+        player.state = 'landing';
+        emitParticles(player.x + player.w/2, H, 8, {
+          color: 'rgba(180,160,140,0.4)',
+          speed: 1.5,
+          upward: 0.5,
+          lifeMin: 15,
+          lifeMax: 25
+        });
+      }
+      if (player.vy > 1) player.vy = 0;
+    }
+
+    if (player.y < 0) {
+      player.y = 0;
+      player.vy = 0;
+    }
+
+    // Player rotation
+    const targetRot = player.vy * 0.03;
+    player.rotation += (targetRot - player.rotation) * 0.1;
+    player.rotation = clamp(player.rotation, -0.5, 0.5);
+
+    // Squash and stretch
+    if (player.isGrounded) {
+      player.squash = 1;
+      player.stretch = 1;
+    } else {
+      player.squash = 1 - Math.abs(player.vy) * 0.001;
+      player.stretch = 1 + Math.abs(player.vy) * 0.001;
+      player.squash = clamp(player.squash, 0.7, 1);
+      player.stretch = clamp(player.stretch, 1, 1.3);
+    }
+
+    // Combo
+    if (game.comboCountdown > 0) {
+      game.comboCountdown--;
+      if (game.comboCountdown === 0) {
+        game.combo = 0;
+        comboDisplay.classList.remove('active');
+      }
+    }
+
+    // Update obstacles
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      const o = obstacles[i];
+      o.update(speed * speedMult);
+      if (!o.active) {
+        obstaclePool.release(o);
+        obstacles.splice(i, 1);
+        continue;
+      }
+
+      if (!o.scored && o.x + o.width < player.x) {
+        o.scored = true;
+        game.score += 1 + Math.floor(game.combo / 5);
+        game.obstaclesCleared++;
+        storage.obstaclesCleared++;
+        updateCombo(1);
+        
+        // Near miss bonus
+        const distToTop = Math.abs(player.y - o.topH);
+        const distToBottom = Math.abs(player.y + player.h - (o.topH + o.gap));
+        if (distToTop < 15 || distToBottom < 15) {
+          game.nearMisses++;
+          game.score += 2;
+          emitParticles(player.x + player.w/2, player.y, 10, {
+            color: 'rgba(255,215,0,0.6)',
+            speed: 3,
+            lifeMin: 15,
+            lifeMax: 25,
+            sizeMin: 2,
+            sizeMax: 5
+          });
+        }
+      }
+
+      // Collision
+      if (player.x < o.x + o.width && player.x + player.w > o.x) {
+        if (player.y < o.topH || player.y + player.h > o.topH + o.gap) {
+          // Shield check
+          if (activePowerups.shield && activePowerups.shield > 0) {
+            activePowerups.shield--;
+            emitParticles(player.x + player.w/2, player.y, 20, {
+              color: 'rgba(100,200,255,0.6)',
+              speed: 4,
+              lifeMin: 20,
+              lifeMax: 30
+            });
+            // Destroy obstacle
+            o.active = false;
+            continue;
+          }
+          gameOver();
+          return;
+        }
+      }
+    }
+
+    // Update coins
+    for (let i = coins.length - 1; i >= 0; i--) {
+      const c = coins[i];
+      c.update(speed * speedMult);
+      if (!c.active) {
+        coinPool.release(c);
+        coins.splice(i, 1);
+        continue;
+      }
+      
+      if (!c.collected) {
+        const dx = (player.x + player.w/2) - c.x;
+        const dy = (player.y + player.h/2) - c.y;
+        const magnet = activePowerups.magnet || false;
+        const range = magnet ? 60 : 15;
+        if (Math.abs(dx) < range && Math.abs(dy) < range) {
+          c.collected = true;
+          const worth = c.type === 'diamond' ? 5 : c.type === 'golden' ? 3 : 1;
+          game.coins += worth;
+          storage.coins += worth;
+          storage.totalCoins += worth;
+          game.score += worth;
+          emitParticles(c.x, c.y, 15, {
+            color: c.type === 'diamond' ? 'rgba(100,200,255,0.8)' : 'rgba(255,215,0,0.8)',
+            speed: 3,
+            lifeMin: 15,
+            lifeMax: 25,
+            sizeMin: 2,
+            sizeMax: 5
+          });
+          coinPool.release(c);
+          coins.splice(i, 1);
+          updateCombo(2);
+          updateHUD();
+        }
+      }
+    }
+
+    // Update enemies
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      e.update(speed * speedMult, player.y);
+      if (!e.active) {
+        enemyPool.release(e);
+        enemies.splice(i, 1);
+        continue;
+      }
+      
+      // Simple collision
+      if (player.x < e.x + e.w && player.x + player.w > e.x &&
+          player.y < e.y + e.h && player.y + player.h > e.y) {
+        if (activePowerups.shield && activePowerups.shield > 0) {
+          activePowerups.shield--;
+          e.active = false;
+          emitParticles(e.x + e.w/2, e.y, 15, {
+            color: 'rgba(100,200,255,0.6)',
+            speed: 4,
+            lifeMin: 15,
+            lifeMax: 25
+          });
+          continue;
+        }
+        gameOver();
+        return;
+      }
+    }
+
+    // Update powerups
+    for (let i = powerups.length - 1; i >= 0; i--) {
+      const p = powerups[i];
+      p.x -= speed * speedMult;
+      p.bob += 0.04;
+      p.y += Math.sin(p.bob) * 0.15;
+      
+      if (p.x + p.size < 0) {
+        powerups.splice(i, 1);
+        continue;
+      }
+      
+      if (!p.collected) {
+        const dx = (player.x + player.w/2) - p.x;
+        const dy = (player.y + player.h/2) - p.y;
+        if (Math.abs(dx) < p.size + 15 && Math.abs(dy) < p.size + 15) {
+          p.collected = true;
+          activePowerups[p.type] = (activePowerups[p.type] || 0) + 1;
+          if (p.type === 'slowMo') {
+            game.slowMo = true;
+            game.slowMoTimer = 120;
+          }
+          emitParticles(p.x, p.y, 20, {
+            color: 'rgba(200,150,255,0.6)',
+            speed: 4,
+            lifeMin: 20,
+            lifeMax: 30
+          });
+          powerups.splice(i, 1);
+        }
+      }
+    }
+
+    // Update active powerups
+    for (const key in activePowerups) {
+      if (activePowerups[key] <= 0) {
+        delete activePowerups[key];
+        if (key === 'slowMo') game.slowMo = false;
+      }
+    }
+    if (game.slowMoTimer > 0) {
+      game.slowMoTimer--;
+      if (game.slowMoTimer === 0) {
+        game.slowMo = false;
+        delete activePowerups.slowMo;
+      }
+    }
+
+    // Spawn
+    game.frame++;
+    const spawnRate = Math.max(60, 120 - Math.floor(game.difficulty * 8));
+    if (game.frame % spawnRate === 0) {
+      spawnObstacle();
+      if (Math.random() < 0.4) spawnCoin();
+      if (Math.random() < 0.15 + game.difficulty * 0.02) spawnEnemy();
+      if (Math.random() < 0.05) spawnPowerup();
+    }
+    if (game.frame % 20 === 0 && Math.random() < 0.2) spawnCoin();
+
+    // Score over time
+    if (game.frame % 5 === 0) {
+      game.score += 0.1 * (1 + game.combo * 0.05);
+    }
+
+    // Update HUD
+    if (game.frame % 3 === 0) updateHUD();
+
+    // Update particles
+    for (const p of particlePool.getActive()) {
+      p.update();
+    }
+
+    // Update weather
+    if (game.frame % 2 === 0) updateWeather();
+
+    // Background
+    updateBackground();
+
+    // Running dust
+    if (player.isGrounded && game.frame % 3 === 0) {
+      emitParticles(player.x + player.w/2, H, 1, {
+        color: 'rgba(180,160,140,0.2)',
+        speed: 0.5,
+        upward: 0.2,
+        lifeMin: 10,
+        lifeMax: 20,
+        sizeMin: 1,
+        sizeMax: 3
+      });
+    }
+  }
+
+  // ============================================================
+  // COMBO
+  // ============================================================
+  function updateCombo(increment) {
+    game.combo += increment;
+    if (game.combo > game.maxCombo) {
+      game.maxCombo = game.combo;
+      storage.bestCombo = Math.max(storage.bestCombo, game.maxCombo);
+    }
+    game.comboCountdown = 60;
+    
+    if (game.combo >= 2) {
+      comboDisplay.textContent = `x${Math.floor(game.combo)}`;
+      comboDisplay.classList.add('active');
+    } else {
+      comboDisplay.classList.remove('active');
+    }
+  }
+
+  // ============================================================
+  // GAME OVER
+  // ============================================================
+  function gameOver() {
+    if (game.over) return;
+    game.over = true;
+    game.running = false;
+    game.totalTime = (Date.now() - game.startTime) / 1000;
+    storage.playTime += game.totalTime;
+    storage.games++;
+    
+    if (game.score > storage.highScore) {
+      storage.highScore = Math.floor(game.score);
+    }
+    
+    saveStorage();
+    
+    finalScore.textContent = Math.floor(game.score);
+    finalHigh.textContent = storage.highScore;
+    finalCoins.textContent = game.coins;
+    
+    gameOverOverlay.classList.remove('hidden');
+    
+    // Death particles
+    emitParticles(player.x + player.w/2, player.y + player.h/2, 30, {
+      color: 'rgba(255,80,80,0.5)',
+      speed: 5,
+      lifeMin: 20,
+      lifeMax: 40,
+      sizeMin: 3,
+      sizeMax: 7
+    });
+    
+    game.shakeIntensity = 10;
+    updateHUD();
+  }
+
+  // ============================================================
+  // DRAW
+  // ============================================================
+  function draw() {
+    ctx.save();
+    
+    // Screen shake
+    if (game.shakeIntensity > 0) {
+      const shake = game.shakeIntensity * 0.3;
+      ctx.translate(
+        (Math.random() - 0.5) * shake * 2,
+        (Math.random() - 0.5) * shake * 2
+      );
+      game.shakeIntensity *= 0.9;
+      if (game.shakeIntensity < 0.1) game.shakeIntensity = 0;
+    }
+    
+    // Background
+    drawBackground();
+    
+    // Weather
+    drawWeather();
+    
+    // Obstacles
+    for (const o of obstacles) {
+      o.draw(ctx);
+    }
+    
+    // Coins
+    for (const c of coins) {
+      c.draw(ctx);
+    }
+    
+    // Enemies
+    for (const e of enemies) {
+      e.draw(ctx);
+    }
+    
+    // Powerups
+    for (const p of powerups) {
+      const colors = {
+        shield: '#6af',
+        magnet: '#fa6',
+        doubleJump: '#af6',
+        slowMo: '#6af',
+        feather: '#f6a',
+        bomb: '#f66'
+      };
+      ctx.fillStyle = colors[p.type] || '#fff';
+      ctx.shadowColor = colors[p.type] || '#fff';
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'white';
+      ctx.font = `${p.size}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const icons = { shield: '🛡', magnet: '🧲', doubleJump: '⬆', slowMo: '⏱', feather: '🪶', bomb: '💥' };
+      ctx.fillText(icons[p.type] || '?', p.x, p.y + 1);
+    }
+    
+    // Player
+    drawPlayer();
+    
+    // Particles
+    for (const p of particlePool.getActive()) {
+      p.draw(ctx);
+    }
+    
+    // Shield effect
+    if (activePowerups.shield) {
+      ctx.strokeStyle = `rgba(100,180,255,${0.2 + Math.sin(game.frame * 0.05) * 0.1})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(player.x + player.w/2, player.y + player.h/2, player.w * 1.1, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    
+    ctx.restore();
+  }
+
+  // ============================================================
+  // DRAW PLAYER
+  // ============================================================
+  function drawPlayer() {
+    const px = player.x, py = player.y;
+    ctx.save();
+    ctx.translate(px + player.w/2, py + player.h/2);
+    ctx.rotate(player.rotation);
+    ctx.scale(1 / player.squash, player.stretch);
+    
+    // Shadow
+    ctx.shadowColor = 'rgba(80,60,150,0.2)';
+    ctx.shadowBlur = 20;
+    
+    // Body
+    const grad = ctx.createLinearGradient(-player.w/2, -player.h/2, player.w/2, player.h/2);
+    grad.addColorStop(0, '#2a2440');
+    grad.addColorStop(1, '#1a1530');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, player.w/2, player.h/2.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Head
+    ctx.fillStyle = '#2c2640';
+    ctx.beginPath();
+    ctx.ellipse(0, -3, player.w/2.3, player.h/3.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Headband
+    ctx.fillStyle = '#d44a4a';
+    ctx.fillRect(-player.w/2.2, -player.h/2.8, player.w/1.1, 3);
+    ctx.fillStyle = '#e86a6a';
+    ctx.fillRect(-player.w/2.6, -player.h/2.8, 5, 6);
+    
+    // Eyes (follow direction)
+    const eyeY = -3;
+    ctx.fillStyle = '#f0ecf8';
+    ctx.beginPath();
+    ctx.ellipse(-5, eyeY, 3.5, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(5, eyeY, 3.5, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#14101f';
+    const eyeOff = player.vy > 0 ? 1 : -1;
+    ctx.beginPath();
+    ctx.arc(-4 + eyeOff, eyeY + 0.5, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(6 + eyeOff, eyeY + 0.5, 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Scarf
+    ctx.fillStyle = '#d44a4a';
+    ctx.beginPath();
+    ctx.moveTo(-player.w/2.5, player.h/4);
+    ctx.quadraticCurveTo(0, player.h/2.5, player.w/2.5, player.h/4);
+    ctx.fill();
+    
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // ============================================================
+  // HUD UPDATE
+  // ============================================================
+  function updateHUD() {
+    hudScore.textContent = Math.floor(game.score);
+    hudHigh.textContent = storage.highScore;
+    hudCoins.textContent = storage.coins;
+  }
+
+  // ============================================================
+  // START / RETRY
+  // ============================================================
+  function startGame() {
+    startOverlay.classList.add('hidden');
+    initGame();
+  }
+
+  function retryGame() {
+    gameOverOverlay.classList.add('hidden');
+    initGame();
+  }
+
+  function goToMenu() {
+    gameOverOverlay.classList.add('hidden');
+    startOverlay.classList.remove('hidden');
+  }
+
+  // ============================================================
+  // EVENT BINDING
+  // ============================================================
+  function handleTap(e) {
+    if (e) e.preventDefault();
+    if (!game.running || game.over) return;
+    jump();
+  }
+
+  document.addEventListener('click', handleTap);
+  document.addEventListener('touchstart', handleTap, { passive: false });
+
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('retryBtn').addEventListener('click', retryGame);
+  document.getElementById('menuBtn').addEventListener('click', goToMenu);
+
+  // ============================================================
+  // GAME LOOP
+  // ============================================================
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // Bootstrap
+  updateHUD();
+  loop();
+
+  // Show start overlay initially
+  startOverlay.classList.remove('hidden');
+  gameOverOverlay.classList.add('hidden');
+
+  console.log('⚡ Shadow Dash loaded — premium ninja runner');
+})();
+</script>
+</body>
+</html>
