@@ -2,391 +2,744 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flappy Ninja - Action Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Shadow Dash · Ninja runner</title>
   <style>
+    /* modern glassmorphism + dark mode ready */
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
-    
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
+      background: #0b0e1a;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 1rem;
+      min-height: 100vh;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      padding: 12px;
+      margin: 0;
+      touch-action: manipulation;
     }
-    
+
     .game-wrapper {
       width: 100%;
-      max-width: 400px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
+      max-width: 420px;
+      border-radius: 36px;
+      background: rgba(20, 25, 45, 0.6);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.06);
+      padding: 14px 14px 20px;
+      transition: all 0.2s;
     }
-    
-    #game-container {
-      background: linear-gradient(to bottom, #87CEEB, #E0F6FF);
-      width: 100%;
-      aspect-ratio: 9/16;
-      border-radius: 12px;
+
+    .game-container {
       position: relative;
+      width: 100%;
+      aspect-ratio: 9 / 16;
+      border-radius: 24px;
       overflow: hidden;
-      border: 2px solid rgba(255,255,255,0.3);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      background: #0a0f1a;
+      box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.7);
+      touch-action: none;
     }
-    
+
     #gameCanvas {
       display: block;
       width: 100%;
       height: 100%;
+      background: transparent;
+      touch-action: none;
     }
-    
-    .stats {
+
+    /* HUD overlay – glass stats */
+    .stats-row {
       display: flex;
       gap: 12px;
-      padding: 0 1rem;
+      margin-top: 14px;
+      padding: 0 6px;
     }
-    
+
     .stat-card {
       flex: 1;
-      background: rgba(255,255,255,0.15);
-      border: 1px solid rgba(255,255,255,0.3);
-      border-radius: 12px;
-      padding: 12px;
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 18px;
+      padding: 12px 8px;
       text-align: center;
-      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
     }
-    
+
     .stat-label {
-      font-size: 12px;
-      color: rgba(255,255,255,0.7);
-      margin-bottom: 4px;
-    }
-    
-    .stat-value {
-      font-size: 20px;
+      font-size: 11px;
+      letter-spacing: 0.03em;
+      color: rgba(255, 255, 255, 0.4);
+      text-transform: uppercase;
       font-weight: 600;
-      color: white;
     }
-    
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #f0f3ff;
+      line-height: 1.3;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    }
+
+    /* overlays – glass + blur */
     .overlay {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0,0,0,0.7);
+      background: rgba(8, 12, 26, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 10;
-      border-radius: 12px;
+      border-radius: 24px;
+      transition: opacity 0.25s ease;
+      padding: 24px;
+      z-index: 30;
     }
-    
+
     .overlay-hidden {
-      display: none;
+      opacity: 0;
+      pointer-events: none;
     }
-    
+
     .overlay-content {
       text-align: center;
+      max-width: 260px;
       color: white;
     }
-    
+
     .overlay-title {
-      font-size: 32px;
-      font-weight: 600;
-      margin-bottom: 8px;
+      font-size: 38px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #d9b3ff, #9f7aff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 30px rgba(150, 100, 255, 0.3);
+      margin-bottom: 6px;
     }
-    
-    .overlay-subtitle {
-      font-size: 14px;
-      color: rgba(255,255,255,0.8);
+
+    .overlay-sub {
+      font-size: 16px;
+      font-weight: 400;
+      color: rgba(255, 255, 255, 0.6);
       margin-bottom: 24px;
       line-height: 1.5;
     }
-    
-    .overlay-score {
+
+    .overlay-score-box {
       font-size: 18px;
-      margin-bottom: 24px;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 12px 20px;
+      border-radius: 60px;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      margin-bottom: 28px;
+      display: inline-block;
+      color: #f0f3ff;
     }
-    
-    .overlay-score div {
-      margin: 4px 0;
+
+    .overlay-score-box span {
+      font-weight: 300;
+      color: rgba(255, 255, 255, 0.5);
+      margin: 0 4px;
     }
-    
-    .overlay-score-label {
-      font-size: 14px;
-      color: rgba(255,255,255,0.7);
-    }
-    
-    button {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: white;
+
+    .btn {
+      background: linear-gradient(145deg, #6f4aff, #4f2bc0);
       border: none;
-      padding: 12px 32px;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.1s;
-    }
-    
-    button:active {
-      transform: scale(0.98);
-    }
-    
-    .title {
-      text-align: center;
+      padding: 14px 40px;
+      border-radius: 60px;
+      font-weight: 700;
+      font-size: 18px;
       color: white;
-      margin-bottom: 1rem;
+      box-shadow: 0 8px 28px rgba(80, 40, 200, 0.4);
+      transition: all 0.1s ease;
+      touch-action: manipulation;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
-    
-    .title h1 {
-      font-size: 24px;
-      margin-bottom: 4px;
+
+    .btn:active {
+      transform: scale(0.94);
+      box-shadow: 0 2px 12px rgba(80, 40, 200, 0.3);
     }
-    
-    .title p {
-      font-size: 13px;
-      color: rgba(255,255,255,0.7);
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+      margin-top: 12px;
+      padding: 12px 32px;
+      font-size: 15px;
     }
+
+    .flex-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* responsive */
+    @media (max-width: 480px) {
+      .game-wrapper { padding: 10px; }
+      .stat-card { padding: 8px 4px; }
+      .stat-value { font-size: 18px; }
+    }
+
+    @media (prefers-color-scheme: light) {
+      body { background: #1a1e2e; }
+      .game-wrapper { background: rgba(30, 35, 55, 0.7); }
+    }
+
+    /* dark mode is default */
   </style>
 </head>
 <body>
-  <div class="game-wrapper">
-    <div class="title">
-      <h1>🥋 Flappy Ninja</h1>
-      <p>Tap to jump, avoid the pipes</p>
-    </div>
-    
-    <div id="game-container">
-      <canvas id="gameCanvas"></canvas>
-      
-      <div id="start-overlay" class="overlay">
-        <div class="overlay-content">
-          <div class="overlay-title">Flappy Ninja</div>
-          <div class="overlay-subtitle">
-            Tap or click to jump<br/>Avoid the pipes
-          </div>
-          <button onclick="startGame()">Start Game</button>
-        </div>
-      </div>
-      
-      <div id="game-over-overlay" class="overlay overlay-hidden">
-        <div class="overlay-content">
-          <div class="overlay-title">Game Over</div>
-          <div class="overlay-score">
-            <div>Score: <span id="final-score">0</span></div>
-            <div class="overlay-score-label">High Score: <span id="final-highscore">0</span></div>
-          </div>
-          <button onclick="tryAgain()">Try Again</button>
-        </div>
+<div class="game-wrapper">
+  <div class="game-container" id="gameContainer">
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- START OVERLAY -->
+    <div id="startOverlay" class="overlay">
+      <div class="overlay-content">
+        <div class="overlay-title">⚡ Shadow Dash</div>
+        <div class="overlay-sub">Ninja runner · dodge, collect, survive</div>
+        <button class="btn" id="startBtn">Dash now</button>
+        <div style="margin-top:14px; font-size:13px; color:rgba(255,255,255,0.3);">tap / click to jump</div>
       </div>
     </div>
-    
-    <div class="stats">
-      <div class="stat-card">
-        <div class="stat-label">Score</div>
-        <div class="stat-value" id="score-display">0</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">High Score</div>
-        <div class="stat-value" id="highscore-display">0</div>
+
+    <!-- GAME OVER OVERLAY -->
+    <div id="gameOverOverlay" class="overlay overlay-hidden">
+      <div class="overlay-content">
+        <div class="overlay-title" style="font-size:32px;">💀 fallen</div>
+        <div class="overlay-score-box">
+          <span>🏯</span> <span id="finalScore">0</span>  <span style="opacity:0.3;">·</span>  best <span id="finalHigh">0</span>
+        </div>
+        <button class="btn" id="retryBtn">Rise again</button>
       </div>
     </div>
   </div>
 
-  <script>
+  <!-- HUD -->
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-label">🏹 score</div><div class="stat-value" id="hudScore">0</div></div>
+    <div class="stat-card"><div class="stat-label">⚔️ best</div><div class="stat-value" id="hudHigh">0</div></div>
+    <div class="stat-card"><div class="stat-label">🪙 coins</div><div class="stat-value" id="hudCoins">0</div></div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    "use strict";
+
+    // ---------- canvas setup ----------
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-    
-    function resizeCanvas() {
-      const container = document.getElementById('game-container');
+    const container = document.getElementById('gameContainer');
+
+    let W, H;
+
+    function resize() {
       const rect = container.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
+      const dpr = window.devicePixelRatio || 1;
+      W = rect.width;
+      H = rect.height;
+      canvas.width = W * dpr;
+      canvas.height = H * dpr;
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.scale(dpr, dpr);
     }
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    
-    let gameState = {
+    resize();
+    window.addEventListener('resize', resize);
+
+    // ---------- storage ----------
+    const STORAGE_KEY = 'shadowDash_data';
+    function loadStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const data = JSON.parse(raw);
+          return {
+            highScore: data.highScore || 0,
+            coins: data.coins || 0,
+            games: data.games || 0,
+          };
+        }
+      } catch (_) {}
+      return { highScore: 0, coins: 0, games: 0 };
+    }
+
+    function saveStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          highScore: storage.highScore,
+          coins: storage.coins,
+          games: storage.games,
+        }));
+      } catch (_) {}
+    }
+
+    let storage = loadStorage();
+
+    // ---------- DOM refs ----------
+    const hudScore = document.getElementById('hudScore');
+    const hudHigh = document.getElementById('hudHigh');
+    const hudCoins = document.getElementById('hudCoins');
+    const finalScore = document.getElementById('finalScore');
+    const finalHigh = document.getElementById('finalHigh');
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+
+    // ---------- game state ----------
+    let game = {
       running: false,
-      gameOver: false,
+      over: false,
       score: 0,
-      highScore: localStorage.getItem('flappyNinjaHighScore') ? parseInt(localStorage.getItem('flappyNinjaHighScore')) : 0
+      coins: 0,
+      frame: 0,
     };
-    
+
+    // ---------- player ----------
     const player = {
-      x: 0,
-      y: 0,
-      width: 0,
-      height: 0,
-      velocityY: 0,
+      x: 0, y: 0, w: 0, h: 0,
+      vy: 0,
       gravity: 0,
-      jumpPower: 0
+      jumpPower: 0,
+      rotation: 0,
+      squash: 1,
     };
-    
-    let pipes = [];
-    let frameCount = 0;
-    
-    function initGame() {
-      player.width = canvas.width * 0.08;
-      player.height = canvas.width * 0.08;
-      player.x = canvas.width * 0.2;
-      player.y = canvas.height / 2;
-      player.velocityY = 0;
-      player.gravity = canvas.height * 0.0006;
-      player.jumpPower = canvas.height * 0.015;
-      pipes = [];
-      frameCount = 0;
-      gameState.score = 0;
-      gameState.running = true;
-      gameState.gameOver = false;
-      document.getElementById('game-over-overlay').classList.add('overlay-hidden');
+
+    // ---------- obstacles (pipes / walls) ----------
+    let obstacles = [];
+    const OBSTACLE_SPEED_BASE = 0.008; // relative to canvas width per frame
+
+    // ---------- coins (collectibles) ----------
+    let coinItems = [];
+
+    // ---------- particle system (dust, sparkle) ----------
+    let particles = [];
+
+    // ---------- helpers ----------
+    function rand(min, max) { return Math.random() * (max - min) + min; }
+
+    function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+
+    // ---------- init round ----------
+    function initRound() {
+      const pw = W * 0.08;
+      const ph = pw * 1.2;
+      player.w = pw;
+      player.h = ph;
+      player.x = W * 0.22;
+      player.y = H * 0.4;
+      player.vy = 0;
+      player.gravity = H * 0.00055;
+      player.jumpPower = H * 0.013;
+      player.rotation = 0;
+      player.squash = 1;
+
+      obstacles = [];
+      coinItems = [];
+      particles = [];
+      game.score = 0;
+      game.coins = 0;
+      game.frame = 0;
+      game.over = false;
+      game.running = true;
+
+      updateHUD();
+      gameOverOverlay.classList.add('overlay-hidden');
     }
-    
-    function startGame() {
-      document.getElementById('start-overlay').classList.add('overlay-hidden');
-      initGame();
-    }
-    
-    function tryAgain() {
-      document.getElementById('start-overlay').classList.remove('overlay-hidden');
-    }
-    
-    function drawPlayer() {
-      ctx.fillStyle = '#FF6B6B';
-      ctx.beginPath();
-      ctx.arc(player.x + player.width / 2, player.y + player.height / 2, player.width / 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#C92A2A';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-    
-    function drawPipes() {
-      pipes.forEach(pipe => {
-        ctx.fillStyle = '#4CAF50';
-        ctx.fillRect(pipe.x, 0, pipe.width, pipe.topHeight);
-        ctx.fillRect(pipe.x, pipe.topHeight + pipe.gap, pipe.width, canvas.height - (pipe.topHeight + pipe.gap));
-        
-        ctx.strokeStyle = '#388E3C';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(pipe.x, 0, pipe.width, pipe.topHeight);
-        ctx.strokeRect(pipe.x, pipe.topHeight + pipe.gap, pipe.width, canvas.height - (pipe.topHeight + pipe.gap));
+
+    // ---------- spawn obstacle ----------
+    function spawnObstacle() {
+      const gapSize = H * (0.24 + Math.random() * 0.08);
+      const minTop = H * 0.05;
+      const maxTop = H * 0.65;
+      const topH = minTop + Math.random() * (maxTop - minTop);
+      const width = W * 0.1 + rand(0, W * 0.03);
+      obstacles.push({
+        x: W + 20,
+        width: width,
+        topH: topH,
+        gap: gapSize,
+        scored: false,
       });
     }
-    
-    function updatePlayer() {
-      player.velocityY += player.gravity;
-      player.y += player.velocityY;
-      
-      if (player.y + player.height > canvas.height || player.y < 0) {
-        endGame();
-      }
-    }
-    
-    function updatePipes() {
-      const pipeSpeed = canvas.width * 0.006;
-      
-      pipes.forEach(pipe => {
-        pipe.x -= pipeSpeed;
+
+    // ---------- spawn coin ----------
+    function spawnCoin() {
+      const size = W * 0.035;
+      const y = rand(H * 0.12, H * 0.82);
+      coinItems.push({
+        x: W + 30,
+        y: y,
+        r: size * 0.5,
+        collected: false,
+        bob: rand(0, Math.PI * 2),
       });
-      
-      pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
-      
-      if (frameCount % 120 === 0) {
-        const gapHeight = canvas.height * 0.25;
-        const minTop = canvas.height * 0.1;
-        const maxTop = canvas.height * 0.6;
-        const topHeight = minTop + Math.random() * (maxTop - minTop);
-        
-        pipes.push({
-          x: canvas.width,
-          width: canvas.width * 0.12,
-          topHeight: topHeight,
-          gap: gapHeight,
-          scored: false
+    }
+
+    // ---------- particles ----------
+    function emitDust(x, y, count, color, speed) {
+      for (let i = 0; i < count; i++) {
+        const angle = rand(-Math.PI, 0);
+        const sp = rand(0.5, 2.5) * (speed || 1);
+        particles.push({
+          x, y,
+          vx: Math.cos(angle) * sp * 0.8,
+          vy: Math.sin(angle) * sp * 0.6 - 0.5,
+          life: rand(12, 30),
+          maxLife: 30,
+          size: rand(2, 6),
+          color: color || 'rgba(220,200,180,0.5)',
         });
       }
     }
-    
-    function checkCollisions() {
-      pipes.forEach(pipe => {
-        if (!pipe.scored && pipe.x + pipe.width < player.x) {
-          pipe.scored = true;
-          gameState.score++;
-          updateScore();
+
+    function emitCoinSparkle(x, y) {
+      for (let i = 0; i < 12; i++) {
+        const angle = rand(0, Math.PI * 2);
+        const sp = rand(1, 4);
+        particles.push({
+          x, y,
+          vx: Math.cos(angle) * sp,
+          vy: Math.sin(angle) * sp - 1,
+          life: rand(8, 20),
+          maxLife: 20,
+          size: rand(2, 5),
+          color: `hsl(45, 100%, ${rand(60, 90)}%)`,
+        });
+      }
+    }
+
+    // ---------- update ----------
+    function update() {
+      if (!game.running || game.over) return;
+
+      const speedFactor = 1 + Math.min(game.score / 300, 0.7);
+      const baseSpeed = W * OBSTACLE_SPEED_BASE * speedFactor;
+
+      // player physics
+      player.vy += player.gravity;
+      player.y += player.vy;
+
+      // rotation & squash
+      player.rotation = player.vy * 0.025;
+      player.squash = 1 + Math.abs(player.vy) * 0.002;
+      if (player.squash > 1.15) player.squash = 1.15;
+
+      // ground / ceiling
+      if (player.y + player.h > H) {
+        player.y = H - player.h;
+        player.vy = 0;
+        emitDust(player.x + player.w/2, H, 6, 'rgba(180,160,140,0.4)', 0.8);
+      }
+      if (player.y < 0) {
+        player.y = 0;
+        player.vy = 0;
+      }
+
+      // obstacles
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+        o.x -= baseSpeed;
+        if (o.x + o.width < 0) {
+          obstacles.splice(i, 1);
+          continue;
         }
-        
-        if (player.x < pipe.x + pipe.width && player.x + player.width > pipe.x) {
-          if (player.y < pipe.topHeight || player.y + player.height > pipe.topHeight + pipe.gap) {
-            endGame();
+        // collision
+        if (!o.scored && o.x + o.width < player.x) {
+          o.scored = true;
+          game.score += 1;
+          updateHUD();
+          // near miss bonus if close to pipe edge
+          if (Math.abs(player.y - o.topH) < 12 || Math.abs(player.y + player.h - (o.topH + o.gap)) < 12) {
+            game.score += 1;
+            emitDust(player.x + player.w/2, player.y + player.h/2, 6, 'rgba(255,215,0,0.6)', 1.2);
           }
         }
+
+        // hit detection
+        if (player.x < o.x + o.width && player.x + player.w > o.x) {
+          if (player.y < o.topH || player.y + player.h > o.topH + o.gap) {
+            gameOver();
+            return;
+          }
+        }
+      }
+
+      // coins
+      for (let i = coinItems.length - 1; i >= 0; i--) {
+        const c = coinItems[i];
+        c.x -= baseSpeed;
+        c.bob += 0.04;
+        c.y += Math.sin(c.bob) * 0.15;
+        if (c.x + c.r < 0) { coinItems.splice(i, 1); continue; }
+        if (!c.collected) {
+          const dx = (player.x + player.w/2) - c.x;
+          const dy = (player.y + player.h/2) - c.y;
+          if (Math.abs(dx) < c.r + player.w/2 && Math.abs(dy) < c.r + player.h/2) {
+            c.collected = true;
+            game.coins += 1;
+            storage.coins += 1;
+            saveStorage();
+            emitCoinSparkle(c.x, c.y);
+            updateHUD();
+            coinItems.splice(i, 1);
+          }
+        }
+      }
+
+      // spawn
+      game.frame++;
+      if (game.frame % Math.max(80, 120 - Math.floor(game.score / 5)) === 0) {
+        spawnObstacle();
+        if (Math.random() < 0.5) spawnCoin();
+      }
+      if (game.frame % 30 === 0 && Math.random() < 0.3) spawnCoin();
+
+      // particles update
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.05;
+        p.life--;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+
+      // running dust
+      if (game.frame % 2 === 0 && player.y + player.h >= H - 2) {
+        emitDust(player.x + player.w/2, H, 1, 'rgba(200,180,160,0.25)', 0.5);
+      }
+    }
+
+    // ---------- render ----------
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // background – night village vibe
+      const grad = ctx.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0, '#0e1428');
+      grad.addColorStop(0.5, '#1a2340');
+      grad.addColorStop(0.85, '#2a1f2e');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      // moon
+      ctx.beginPath();
+      ctx.arc(W * 0.8, H * 0.12, W * 0.09, 0, Math.PI*2);
+      ctx.fillStyle = '#ffecbb';
+      ctx.shadowColor = '#ffd966';
+      ctx.shadowBlur = 40;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // mountains (parallax)
+      ctx.fillStyle = '#1f2a3f';
+      ctx.beginPath();
+      ctx.moveTo(0, H*0.5);
+      for (let x = 0; x <= W; x+=2) {
+        const y = H*0.45 + Math.sin(x*0.006 + 1) * 30 + Math.sin(x*0.015 + 3) * 20;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(W, H);
+      ctx.lineTo(0, H);
+      ctx.fill();
+
+      // ground
+      ctx.fillStyle = '#2d2a24';
+      ctx.fillRect(0, H-12, W, 12);
+      ctx.fillStyle = '#3f382e';
+      ctx.fillRect(0, H-8, W, 8);
+
+      // obstacles (gates / walls)
+      obstacles.forEach(o => {
+        ctx.fillStyle = '#3d2c1e';
+        ctx.shadowColor = '#221a12';
+        ctx.shadowBlur = 8;
+        ctx.fillRect(o.x, 0, o.width, o.topH);
+        ctx.fillRect(o.x, o.topH + o.gap, o.width, H - o.topH - o.gap);
+        // torii detail
+        ctx.fillStyle = '#5e3f28';
+        ctx.fillRect(o.x - 2, o.topH - 4, o.width + 4, 6);
+        ctx.fillRect(o.x - 2, o.topH + o.gap - 2, o.width + 4, 6);
+        ctx.shadowBlur = 0;
+        // glow
+        ctx.strokeStyle = 'rgba(255,200,100,0.08)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(o.x, o.topH, o.width, o.gap);
       });
+
+      // coins
+      coinItems.forEach(c => {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.r, 0, Math.PI*2);
+        ctx.fillStyle = '#f7d44a';
+        ctx.shadowColor = '#f7b32b';
+        ctx.shadowBlur = 20;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#bf8f2a';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+
+      // player (ninja)
+      const px = player.x, py = player.y;
+      ctx.save();
+      ctx.translate(px + player.w/2, py + player.h/2);
+      ctx.rotate(player.rotation);
+      const sx = 1 / player.squash;
+      ctx.scale(sx, player.squash);
+      ctx.shadowColor = 'rgba(200,150,255,0.3)';
+      ctx.shadowBlur = 18;
+
+      // body
+      ctx.fillStyle = '#1f1a2e';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, player.w/2, player.h/2.2, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#2c2640';
+      ctx.beginPath();
+      ctx.ellipse(0, -3, player.w/2.4, player.h/3, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      // headband
+      ctx.fillStyle = '#b33030';
+      ctx.fillRect(-player.w/2.2, -player.h/2.8, player.w/1.1, 4);
+      ctx.fillStyle = '#d94f4f';
+      ctx.fillRect(-player.w/2.6, -player.h/2.8, 6, 8);
+
+      // eyes
+      ctx.fillStyle = '#e8e0f0';
+      ctx.beginPath();
+      ctx.arc(-6, -4, 4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(6, -4, 4, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#14101f';
+      ctx.beginPath();
+      ctx.arc(-4, -2, 2, 0, Math.PI*2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(8, -2, 2, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.restore();
+
+      // particles
+      particles.forEach(p => {
+        ctx.globalAlpha = p.life / p.maxLife;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 0.6, 0, Math.PI*2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
     }
-    
-    function updateScore() {
-      document.getElementById('score-display').textContent = gameState.score;
-    }
-    
-    function endGame() {
-      gameState.running = false;
-      gameState.gameOver = true;
-      
-      if (gameState.score > gameState.highScore) {
-        gameState.highScore = gameState.score;
-        localStorage.setItem('flappyNinjaHighScore', gameState.highScore);
+
+    // ---------- game over ----------
+    function gameOver() {
+      if (game.over) return;
+      game.over = true;
+      game.running = false;
+      if (game.score > storage.highScore) {
+        storage.highScore = game.score;
+        saveStorage();
       }
-      
-      document.getElementById('final-score').textContent = gameState.score;
-      document.getElementById('highscore-display').textContent = gameState.highScore;
-      document.getElementById('final-highscore').textContent = gameState.highScore;
-      document.getElementById('game-over-overlay').classList.remove('overlay-hidden');
+      storage.games += 1;
+      saveStorage();
+      finalScore.textContent = game.score;
+      finalHigh.textContent = storage.highScore;
+      gameOverOverlay.classList.remove('overlay-hidden');
+      updateHUD();
+      emitDust(player.x + player.w/2, player.y + player.h/2, 20, 'rgba(255,80,80,0.5)', 2);
     }
-    
-    function gameLoop() {
-      ctx.fillStyle = '#87CEEB';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      ctx.fillStyle = '#E0F6FF';
-      ctx.fillRect(0, canvas.height * 0.7, canvas.width, canvas.height * 0.3);
-      
-      if (gameState.running) {
-        updatePlayer();
-        updatePipes();
-        checkCollisions();
-      }
-      
-      drawPipes();
-      drawPlayer();
-      frameCount++;
-      
-      requestAnimationFrame(gameLoop);
+
+    // ---------- HUD ----------
+    function updateHUD() {
+      hudScore.textContent = game.score;
+      hudHigh.textContent = storage.highScore;
+      hudCoins.textContent = storage.coins;
     }
-    
-    document.addEventListener('click', () => {
-      if (gameState.running) {
-        player.velocityY = -player.jumpPower;
-      }
+
+    // ---------- jump ----------
+    function jump() {
+      if (!game.running || game.over) return;
+      player.vy = -player.jumpPower;
+      emitDust(player.x + player.w/2, player.y + player.h, 4, 'rgba(200,180,220,0.3)', 0.7);
+    }
+
+    // ---------- start / retry ----------
+    function startGame() {
+      startOverlay.classList.add('overlay-hidden');
+      initRound();
+    }
+
+    function retryGame() {
+      gameOverOverlay.classList.add('overlay-hidden');
+      initRound();
+    }
+
+    // ---------- event binding ----------
+    document.addEventListener('click', (e) => {
+      if (game.running && !game.over) jump();
     });
-    
     document.addEventListener('touchstart', (e) => {
       e.preventDefault();
-      if (gameState.running) {
-        player.velocityY = -player.jumpPower;
-      }
-    });
-    
-    document.getElementById('highscore-display').textContent = gameState.highScore;
-    gameLoop();
-  </script>
+      if (game.running && !game.over) jump();
+    }, { passive: false });
+
+    document.getElementById('startBtn').addEventListener('click', startGame);
+    document.getElementById('retryBtn').addEventListener('click', retryGame);
+
+    // ---------- loop ----------
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    // bootstrap
+    updateHUD();
+    loop();
+
+    // cold start: show start overlay
+    startOverlay.classList.remove('overlay-hidden');
+    gameOverOverlay.classList.add('overlay-hidden');
+
+    // extra: if highscore exists, show it
+    if (storage.highScore > 0) {
+      hudHigh.textContent = storage.highScore;
+    }
+
+  })();
+</script>
 </body>
 </html>
